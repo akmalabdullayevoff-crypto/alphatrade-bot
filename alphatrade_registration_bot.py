@@ -1,4 +1,3 @@
-
 import os
 import sqlite3
 import csv
@@ -6,21 +5,49 @@ import io
 import hashlib
 
 from telegram import (
-    Update, ReplyKeyboardMarkup, KeyboardButton,
-    ReplyKeyboardRemove, BotCommand
+    Update,
+    ReplyKeyboardMarkup,
+    KeyboardButton,
+    ReplyKeyboardRemove,
+    BotCommand
 )
+
 from telegram.ext import (
-    Application, CommandHandler, MessageHandler,
-    ConversationHandler, ContextTypes, filters
+    Application,
+    CommandHandler,
+    MessageHandler,
+    ConversationHandler,
+    ContextTypes,
+    filters
 )
 
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 ADMIN_ID = 671517993
 DB_NAME = "registrations.db"
 
-NAME, PHONE, TRADING, SOURCE = range(4)
+NAME, PHONE, DISTRICT, TRADING, SOURCE = range(5)
 
 CHANNEL_LINK = "https://t.me/+ZbuIAxbqZTtiNjg6"
+
+
+# SURXONDARYO TUMANLARI VA SHAHAR
+DISTRICTS = [
+    "Angor tumani",
+    "Bandixon tumani",
+    "Boysun tumani",
+    "Denov tumani",
+    "Jarqo'rg'on tumani",
+    "Qiziriq tumani",
+    "Qumqo'rg'on tumani",
+    "Muzrabot tumani",
+    "Oltinsoy tumani",
+    "Sariosiyo tumani",
+    "Termiz tumani",
+    "Uzun tumani",
+    "Sherobod tumani",
+    "Sho'rchi tumani",
+    "Termiz shahri"
+]
 
 
 # DATABASE
@@ -31,6 +58,7 @@ def init_db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT,
                 phone TEXT,
+                district TEXT,
                 trading TEXT,
                 source TEXT
             )
@@ -41,19 +69,21 @@ def init_db():
             db.execute("PRAGMA table_info(users)").fetchall()
         ]
 
-        for column in ["trading", "source"]:
+        # Eski bazani yangi ustunlar bilan yangilash
+        for column in ["district", "trading", "source"]:
             if column not in columns:
                 db.execute(
                     f"ALTER TABLE users ADD COLUMN {column} TEXT"
                 )
 
 
-def save_user(name, phone, trading, source):
+def save_user(name, phone, district, trading, source):
     with sqlite3.connect(DB_NAME) as db:
         db.execute("""
-            INSERT INTO users (name, phone, trading, source)
-            VALUES (?, ?, ?, ?)
-        """, (name, phone, trading, source))
+            INSERT INTO users
+            (name, phone, district, trading, source)
+            VALUES (?, ?, ?, ?, ?)
+        """, (name, phone, district, trading, source))
 
 
 def is_admin(update):
@@ -71,7 +101,7 @@ async def set_commands(app):
         BotCommand("admin", "Admin panel"),
         BotCommand("count", "Qatnashchilar soni"),
         BotCommand("list", "Qatnashchilar ro'yxati"),
-        BotCommand("export", "Ro'yxatni yuklab olish"),
+        BotCommand("export", "Ro'yxatni yuklab olish")
     ])
 
 
@@ -81,14 +111,15 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(
         "Assalomu alaykum! 👋\n\n"
-        "📈 TREYDINGDA DAROMAD\n"
+        "📈 TREYDINGDA TIZIMLI DAROMAD\n"
         "🎓 Bepul oflayn vebinar\n"
         "📅 29-noyabr 2026-yil\n"
         "📍 Denov shahri\n"
         "🏢 AlphaTrade Academy\n\n"
         "Ro'yxatdan o'tish uchun quyidagi tugmani bosing.",
         reply_markup=ReplyKeyboardMarkup(
-            keyboard, resize_keyboard=True
+            keyboard,
+            resize_keyboard=True
         )
     )
 
@@ -108,7 +139,9 @@ async def get_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     name = update.message.text.strip()
 
     if not name:
-        await update.message.reply_text("Ism-familiyangizni kiriting.")
+        await update.message.reply_text(
+            "Ism-familiyangizni kiriting."
+        )
         return NAME
 
     context.user_data["name"] = name
@@ -123,15 +156,18 @@ async def get_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "Telefon raqamingizni yuboring:",
         reply_markup=ReplyKeyboardMarkup(
-            keyboard, resize_keyboard=True
+            keyboard,
+            resize_keyboard=True
         )
     )
+
     return PHONE
 
 
 async def phone_again(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "Iltimos, pastdagi «Telefon raqamni yuborish» tugmasini bosing."
+        "Iltimos, pastdagi «Telefon raqamni yuborish» "
+        "tugmasini bosing."
     )
     return PHONE
 
@@ -153,6 +189,38 @@ async def get_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     context.user_data["phone"] = contact.phone_number
 
+    # TUMAN TANLASH TUGMALARI
+    keyboard = [
+        [DISTRICTS[i], DISTRICTS[i + 1]]
+        for i in range(0, 14, 2)
+    ]
+    keyboard.append([DISTRICTS[14]])
+
+    await update.message.reply_text(
+        "📍 Surxondaryoning qaysi tumani yoki shahridan "
+        "vebinarga kelasiz?\n\n"
+        "Quyidagi tugmalardan birini tanlang:",
+        reply_markup=ReplyKeyboardMarkup(
+            keyboard,
+            resize_keyboard=True
+        )
+    )
+
+    return DISTRICT
+
+
+async def get_district(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    answer = update.message.text.strip()
+
+    if answer not in DISTRICTS:
+        await update.message.reply_text(
+            "Iltimos, ro'yxatdan o'zingiz yashaydigan "
+            "tuman yoki shaharni tanlang."
+        )
+        return DISTRICT
+
+    context.user_data["district"] = answer
+
     keyboard = [
         ["✅ Ha, tushuncham bor"],
         ["🆕 Yo'q, yangi boshlovchiman"]
@@ -161,9 +229,11 @@ async def get_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "📈 Treyding haqida tushunchangiz bormi?",
         reply_markup=ReplyKeyboardMarkup(
-            keyboard, resize_keyboard=True
+            keyboard,
+            resize_keyboard=True
         )
     )
+
     return TRADING
 
 
@@ -189,11 +259,14 @@ async def get_trading(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
 
     await update.message.reply_text(
-        "📍 AlphaTrade Academy vebinari haqida qayerdan bildingiz?",
+        "📍 AlphaTrade Academy vebinari haqida "
+        "qayerdan bildingiz?",
         reply_markup=ReplyKeyboardMarkup(
-            keyboard, resize_keyboard=True
+            keyboard,
+            resize_keyboard=True
         )
     )
+
     return SOURCE
 
 
@@ -220,6 +293,7 @@ async def get_source(update: Update, context: ContextTypes.DEFAULT_TYPE):
     save_user(
         context.user_data["name"],
         context.user_data["phone"],
+        context.user_data["district"],
         context.user_data["trading"],
         context.user_data["source"]
     )
@@ -227,9 +301,11 @@ async def get_source(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
 
     await update.message.reply_text(
-        "🎉 Tabriklaymiz! Siz muvaffaqiyatli ro'yxatdan o'tdingiz!\n\n"
+        "🎉 Tabriklaymiz! Siz muvaffaqiyatli "
+        "ro'yxatdan o'tdingiz!\n\n"
         "📢 Vebinarning aniq sanasi, soati va joyi haqida "
-        "ma'lumot olish uchun Telegram kanalimizga obuna bo'ling:\n\n"
+        "ma'lumot olish uchun Telegram kanalimizga "
+        "obuna bo'ling:\n\n"
         f"{CHANNEL_LINK}\n\n"
         "AlphaTrade Academy sizni kutadi! 🚀",
         reply_markup=ReplyKeyboardRemove()
@@ -252,7 +328,8 @@ async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "🔐 ADMIN PANEL\nKerakli bo'limni tanlang:",
         reply_markup=ReplyKeyboardMarkup(
-            keyboard, resize_keyboard=True
+            keyboard,
+            resize_keyboard=True
         )
     )
 
@@ -277,8 +354,10 @@ async def list_users(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     with sqlite3.connect(DB_NAME) as db:
         users = db.execute("""
-            SELECT id, name, phone, trading, source
-            FROM users ORDER BY id DESC LIMIT 100
+            SELECT id, name, phone, district, trading, source
+            FROM users
+            ORDER BY id DESC
+            LIMIT 100
         """).fetchall()
 
     if not users:
@@ -291,14 +370,15 @@ async def list_users(update: Update, context: ContextTypes.DEFAULT_TYPE):
         message = "📋 QATNASHCHILAR RO'YXATI\n\n"
 
         for user in users[start_index:start_index + 5]:
-            uid, name, phone, trading, source = user
+            uid, name, phone, district, trading, source = user
 
             message += (
                 f"#{uid}\n"
                 f"👤 {name}\n"
                 f"📞 {phone}\n"
+                f"📍 Tuman: {district or '—'}\n"
                 f"📈 Treyding: {trading or '—'}\n"
-                f"📍 Manba: {source or '—'}\n\n"
+                f"🔎 Manba: {source or '—'}\n\n"
             )
 
         await update.message.reply_text(message)
@@ -310,8 +390,9 @@ async def export_users(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     with sqlite3.connect(DB_NAME) as db:
         users = db.execute("""
-            SELECT id, name, phone, trading, source
-            FROM users ORDER BY id
+            SELECT id, name, phone, district, trading, source
+            FROM users
+            ORDER BY id
         """).fetchall()
 
     if not users:
@@ -324,8 +405,12 @@ async def export_users(update: Update, context: ContextTypes.DEFAULT_TYPE):
     writer = csv.writer(output)
 
     writer.writerow([
-        "ID", "Ism-familiya", "Telefon",
-        "Treyding bilimi", "Qayerdan bildi"
+        "ID",
+        "Ism-familiya",
+        "Telefon",
+        "Tuman",
+        "Treyding bilimi",
+        "Qayerdan bildi"
     ])
 
     writer.writerows(users)
@@ -355,14 +440,19 @@ async def admin_export_button(update, context):
     await export_users(update, context)
 
 
+# MAIN
 def main():
     if not TOKEN:
-        raise RuntimeError("TELEGRAM_BOT_TOKEN sozlanmagan!")
+        raise RuntimeError(
+            "TELEGRAM_BOT_TOKEN sozlanmagan!"
+        )
 
     external_url = os.getenv("RENDER_EXTERNAL_URL")
 
     if not external_url:
-        raise RuntimeError("RENDER_EXTERNAL_URL topilmadi!")
+        raise RuntimeError(
+            "RENDER_EXTERNAL_URL topilmadi!"
+        )
 
     init_db()
 
@@ -378,14 +468,14 @@ def main():
         .build()
     )
 
-    # Oddiy buyruqlar
+    # COMMANDS
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("admin", admin))
     app.add_handler(CommandHandler("count", count_users))
     app.add_handler(CommandHandler("list", list_users))
     app.add_handler(CommandHandler("export", export_users))
 
-    # Admin tugmalari
+    # ADMIN BUTTONS
     app.add_handler(MessageHandler(
         filters.Regex("^👥 Qatnashchilar soni$"),
         admin_count_button
@@ -401,8 +491,7 @@ def main():
         admin_export_button
     ))
 
-    # RO'YXATDAN O'TISH SUHBATI
-    # Muhim: ro'yxatdan o'tish tugmasi aynan shu yerda entry point.
+    # REGISTRATION CONVERSATION
     conv = ConversationHandler(
         entry_points=[
             CommandHandler("register", register),
@@ -419,10 +508,19 @@ def main():
                 )
             ],
             PHONE: [
-                MessageHandler(filters.CONTACT, get_phone),
+                MessageHandler(
+                    filters.CONTACT,
+                    get_phone
+                ),
                 MessageHandler(
                     filters.TEXT & ~filters.COMMAND,
                     phone_again
+                )
+            ],
+            DISTRICT: [
+                MessageHandler(
+                    filters.TEXT & ~filters.COMMAND,
+                    get_district
                 )
             ],
             TRADING: [
@@ -436,7 +534,7 @@ def main():
                     filters.TEXT & ~filters.COMMAND,
                     get_source
                 )
-            ],
+            ]
         },
         fallbacks=[],
         allow_reentry=True
