@@ -26,16 +26,11 @@ TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 ADMIN_ID = 671517993
 DB_NAME = "registrations.db"
 
-NAME, PHONE, CONSENT, TRADING, SOURCE = range(5)
+CHANNEL_LINK = "https://t.me/+ZbuIAxbqZTtiNjg6"
+
+NAME, PHONE, TRADING, SOURCE = range(4)
 
 REGISTER_TEXT = "📝 Ro‘yxatdan o‘tish"
-CANCEL_TEXT = "❌ Bekor qilish"
-
-TEXT_INPUT = (
-    filters.TEXT
-    & ~filters.COMMAND
-    & ~filters.Regex(r"^❌ Bekor qilish$")
-)
 
 
 # =========================
@@ -79,7 +74,7 @@ def save_user(name, phone, trading, source):
 
 
 # =========================
-# RENDER SERVER
+# RENDER UCHUN SERVER
 # =========================
 
 class HealthHandler(BaseHTTPRequestHandler):
@@ -118,7 +113,6 @@ async def set_commands(app):
     await app.bot.set_my_commands([
         BotCommand("start", "Botni boshlash"),
         BotCommand("register", "Ro‘yxatdan o‘tish"),
-        BotCommand("cancel", "Ro‘yxatdan chiqish"),
         BotCommand("admin", "Admin panel"),
         BotCommand("count", "Qatnashchilar soni"),
         BotCommand("list", "Qatnashchilar ro‘yxati"),
@@ -164,10 +158,7 @@ async def register(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(
         "Ism-familiyangizni yozing:",
-        reply_markup=ReplyKeyboardMarkup(
-            [[CANCEL_TEXT]],
-            resize_keyboard=True
-        )
+        reply_markup=ReplyKeyboardRemove()
     )
 
     return NAME
@@ -184,15 +175,12 @@ async def get_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     context.user_data["name"] = name
 
-    keyboard = [
-        [
-            KeyboardButton(
-                "📱 Telefon raqamni yuborish",
-                request_contact=True
-            )
-        ],
-        [CANCEL_TEXT]
-    ]
+    keyboard = [[
+        KeyboardButton(
+            "📱 Telefon raqamni yuborish",
+            request_contact=True
+        )
+    ]]
 
     await update.message.reply_text(
         "Telefon raqamingizni pastdagi tugma orqali yuboring:",
@@ -234,39 +222,8 @@ async def get_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["phone"] = contact.phone_number
 
     keyboard = [
-        ["✅ Roziman"],
-        [CANCEL_TEXT]
-    ]
-
-    await update.message.reply_text(
-        "Ma’lumotlaringiz vebinarni tashkil qilish va "
-        "tashkiliy xabarlar uchun ishlatilishiga rozimisiz?",
-        reply_markup=ReplyKeyboardMarkup(
-            keyboard,
-            resize_keyboard=True
-        )
-    )
-
-    return CONSENT
-
-
-# =========================
-# ROZILIK
-# =========================
-
-async def consent(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    answer = (update.message.text or "").strip()
-
-    if answer != "✅ Roziman":
-        await update.message.reply_text(
-            "Davom etish uchun «✅ Roziman» tugmasini bosing."
-        )
-        return CONSENT
-
-    keyboard = [
         ["✅ Ha, tushuncham bor"],
-        ["🆕 Yo‘q, yangi boshlovchiman"],
-        [CANCEL_TEXT]
+        ["🆕 Yo‘q, yangi boshlovchiman"]
     ]
 
     await update.message.reply_text(
@@ -302,8 +259,7 @@ async def get_trading(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         ["✈️ Telegram", "📸 Instagram"],
         ["▶️ YouTube", "👥 Do‘st yoki tanish"],
-        ["📢 Reklama", "🔎 Boshqa"],
-        [CANCEL_TEXT]
+        ["📢 Reklama", "🔎 Boshqa"]
     ]
 
     await update.message.reply_text(
@@ -351,25 +307,11 @@ async def get_source(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
 
     await update.message.reply_text(
-        "🎉 Siz muvaffaqiyatli ro‘yxatdan o‘tdingiz!\n\n"
-        "📅 29-noyabr 2026-yil\n"
-        "📍 Denov shahri\n"
-        "🏢 AlphaTrade Academy sizni kutadi!",
-        reply_markup=ReplyKeyboardRemove()
-    )
-
-    return ConversationHandler.END
-
-
-# =========================
-# BEKOR QILISH
-# =========================
-
-async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data.clear()
-
-    await update.message.reply_text(
-        "Ro‘yxatdan o‘tish bekor qilindi.",
+        "🎉 Tabriklaymiz! Siz muvaffaqiyatli ro‘yxatdan o‘tdingiz!\n\n"
+        "📅 Vebinarning aniq sanasi, soati va manzili haqida "
+        "ma’lumot olish uchun Telegram kanalimizga obuna bo‘ling:\n\n"
+        f"📢 {CHANNEL_LINK}\n\n"
+        "AlphaTrade Academy sizni kutadi! 🤝",
         reply_markup=ReplyKeyboardRemove()
     )
 
@@ -404,7 +346,9 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def count_users(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update):
-        await update.message.reply_text("Bu buyruq faqat admin uchun.")
+        await update.message.reply_text(
+            "Bu buyruq faqat admin uchun."
+        )
         return
 
     with sqlite3.connect(DB_NAME) as db:
@@ -419,7 +363,9 @@ async def count_users(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def list_users(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update):
-        await update.message.reply_text("Bu buyruq faqat admin uchun.")
+        await update.message.reply_text(
+            "Bu buyruq faqat admin uchun."
+        )
         return
 
     with sqlite3.connect(DB_NAME) as db:
@@ -453,7 +399,9 @@ async def list_users(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def export_users(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update):
-        await update.message.reply_text("Bu buyruq faqat admin uchun.")
+        await update.message.reply_text(
+            "Bu buyruq faqat admin uchun."
+        )
         return
 
     with sqlite3.connect(DB_NAME) as db:
@@ -495,7 +443,7 @@ async def export_users(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-# ADMIN TUGMALARI
+# ADMIN PANEL TUGMALARI
 
 async def admin_count_button(update, context):
     await count_users(update, context)
@@ -545,49 +493,51 @@ def main():
 
         states={
             NAME: [
-                MessageHandler(TEXT_INPUT, get_name)
+                MessageHandler(
+                    filters.TEXT & ~filters.COMMAND,
+                    get_name
+                )
             ],
 
             PHONE: [
                 MessageHandler(filters.CONTACT, get_phone),
-                MessageHandler(TEXT_INPUT, phone_again)
-            ],
-
-            CONSENT: [
-                MessageHandler(TEXT_INPUT, consent)
+                MessageHandler(
+                    filters.TEXT & ~filters.COMMAND,
+                    phone_again
+                )
             ],
 
             TRADING: [
-                MessageHandler(TEXT_INPUT, get_trading)
+                MessageHandler(
+                    filters.TEXT & ~filters.COMMAND,
+                    get_trading
+                )
             ],
 
             SOURCE: [
-                MessageHandler(TEXT_INPUT, get_source)
+                MessageHandler(
+                    filters.TEXT & ~filters.COMMAND,
+                    get_source
+                )
             ]
         },
 
         fallbacks=[
-            CommandHandler("start", start),
-            CommandHandler("cancel", cancel),
-            MessageHandler(
-                filters.Regex(r"^❌ Bekor qilish$"),
-                cancel
-            )
+            CommandHandler("start", start)
         ],
 
         allow_reentry=True
     )
 
-    # Avval suhbat handleri qo‘shiladi
     app.add_handler(conversation)
 
-    # Admin buyruqlari
+    # ADMIN BUYRUQLARI
     app.add_handler(CommandHandler("admin", admin_panel))
     app.add_handler(CommandHandler("count", count_users))
     app.add_handler(CommandHandler("list", list_users))
     app.add_handler(CommandHandler("export", export_users))
 
-    # Admin panel tugmalari
+    # ADMIN TUGMALARI
     app.add_handler(MessageHandler(
         filters.Regex(r"^👥 Qatnashchilar soni$"),
         admin_count_button
